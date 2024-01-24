@@ -11,6 +11,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <json-c/json.h>
+#include <regex.h>
 
 #define PORT 25 // SMTP的端口
 #define BUFFER_SIZE 1024 // socket通信的缓存区
@@ -41,47 +42,69 @@ char* read_message(int sockfd, char* buffer) {
         exit(1);
     }
     buffer[n] = '\0'; // 添加字符串结束符
-    printf("本次读取到的内容为：%s", buffer);
     return buffer;
 }
 
 
-// 解析缓存区里邮件内容的函数<-----修改一下用上正则表达式匹配，另外逻辑也有点问题，应该重写这个函数
+// 解析邮件内容的函数
 void parse_mail(char* buffer, struct mail_content* m) {
-    char* start = strstr(buffer, "\r\n\r\n"); // 查找邮件开头
-    if (start == NULL) {
-        m->from[0] = '\0';
-        m->to[0] = '\0';
-        m->subject[0] = '\0';
-        m->content[0] = '\0';
+    regex_t regex;
+    regmatch_t pmatch[2];
+    int ret;
+
+    // 匹配 From 字段
+    ret = regcomp(&regex, "From: ([^\r\n]*)", REG_EXTENDED);
+    if (ret != 0) {
+        perror("Error compiling regex");
+        exit(1);
+    }
+    ret = regexec(&regex, buffer, 2, pmatch, 0);
+    if (ret == 0) {
+        strncpy(m->from, &buffer[pmatch[1].rm_so], pmatch[1].rm_eo - pmatch[1].rm_so);
+        m->from[pmatch[1].rm_eo - pmatch[1].rm_so] = '\0';
     } else {
-        start += 4; // 跳过 \r\n\r\n
-        char* end = strstr(start, "\r\n.\r\n"); // 找到邮件的结尾
-        if (end == NULL) {
-            strncpy(m->content, start, BUFFER_SIZE - 1); // 复制整个缓存区作为邮件正文
-            m->content[BUFFER_SIZE - 1] = '\0'; // 加上字符串结尾的标志
-        } else {
-            int len = end - start;
-            char tmp[len + 1];
-            strncpy(tmp, start, len);
-            tmp[len] = '\0';
-            char* p1 = strstr(tmp, "From:");
-            char* p2 = strstr(tmp, "To:");
-            char* p3 = strstr(tmp, "Subject:");
-            if (p1 != NULL && p2 != NULL && p3 != NULL) {
-                sscanf(p1, "From:%[^\r\n]", m->from);
-                sscanf(p2, "To:%[^\r\n]", m->to);
-                sscanf(p3, "Subject:%[^\r\n]", m->subject);
-                strncpy(m->content, end + 5, BUFFER_SIZE - 1 - len - 5);
-                m->content[BUFFER_SIZE - 1 - len - 5] = '\0';
-            } else {
-                m->from[0] = '\0';
-                m->to[0] = '\0';
-                m->subject[0] = '\0';
-                strncpy(m->content, tmp, BUFFER_SIZE - 1);
-                m->content[BUFFER_SIZE - 1] = '\0';
-            }
-        }
+        m->from[0] = '\0';
+    }
+    regfree(&regex);
+
+    // 匹配 To 字段
+    ret = regcomp(&regex, "To: ([^\r\n]*)", REG_EXTENDED);
+    if (ret != 0) {
+        perror("Error compiling regex");
+        exit(1);
+    }
+    ret = regexec(&regex, buffer, 2, pmatch, 0);
+    if (ret == 0) {
+        strncpy(m->to, &buffer[pmatch[1].rm_so], pmatch[1].rm_eo - pmatch[1].rm_so);
+        m->to[pmatch[1].rm_eo - pmatch[1].rm_so] = '\0';
+    } else {
+        m->to[0] = '\0';
+    }
+    regfree(&regex);
+
+    // 匹配 Subject 字段
+    ret = regcomp(&regex, "Subject: ([^\r\n]*)", REG_EXTENDED);
+    if (ret != 0) {
+        perror("Error compiling regex");
+        exit(1);
+    }
+    ret = regexec(&regex, buffer, 2, pmatch, 0);
+    if (ret == 0) {
+        strncpy(m->subject, &buffer[pmatch[1].rm_so], pmatch[1].rm_eo - pmatch[1].rm_so);
+        m->subject[pmatch[1].rm_eo - pmatch[1].rm_so] = '\0';
+    } else {
+        m->subject[0] = '\0';
+    }
+    regfree(&regex);
+
+    // 设置邮件正文
+    char* start = strstr(buffer, "\r\n\r\n");
+    if (start != NULL) {
+        start += 4;
+        strncpy(m->content, start, BUFFER_SIZE - 1);
+        m->content[BUFFER_SIZE - 1] = '\0';
+    } else {
+        m->content[0] = '\0';
     }
 }
 
@@ -98,7 +121,7 @@ void save_mail(struct mail_content* m) {
     json_object_object_add(jobj, "subject", jsubject);
     json_object_object_add(jobj, "content", jcontent);
 
-    FILE* fp = fopen(FILE_NAME, "a"); // 用追加模式打开文件
+    FILE* fp = fopen(FILE_NAME, "w");
     if (fp == NULL) {
         perror("Error opening file");
         exit(1);
@@ -185,26 +208,18 @@ int main() {
             if (rcpt_to) { //
                 send_message(newsockfd, "354 Start mail input; end with <CRLF>.<CRLF>\r\n");
                 in_data = 1; // 进入接收邮件数据状态
-                while(!in_data){
-                    char* mail_buffer = (char*) malloc(1024 * sizeof(char)); // 动态分配一个缓存区存放邮件内容
-                    if (mail_buffer == NULL) { // 检查是否分配成功
-                        perror("Error: failed to allocate memory\n");
-                    }
-                    //依次把read到的缓存区储存在mail_buffer里
-                    //......
-                    if (strncmp(buffer, ".", 1) == 0 && in_data) { // 接收到单独一个 . 的消息表示结束邮件数据的输入
-                        send_message(newsockfd, "250 OK\r\n");
-                        //用parse_mail把mail_buffer解析成mail_content结构体
-                        //......
-                        //如果结构体的前三部分为空则回复一个554状态码拒收
-                        //.......
-                        //将结构体传入save_mail保存
-                        //.......
-                        free(mail_buffer); // 释放动态分配的空间
-                        parse_mail(buffer, &m); // 解析邮件内容
-                        save_mail(&m); // 保存邮件内容到文件
-                        in_data = 0; // 退出接收邮件数据状态
-                    } 
+                read_message(newsockfd, buffer);
+                //用parse_mail把mail_temp解析成mail_content结构体
+                parse_mail(buffer, &mail);
+                //如果结构体的前三部分有空值则回复一个554状态码拒收
+                if(mail.from == 0 || mail.to == 0 || mail.subject == 0){
+                    send_message(newsockfd, "554 Transaction failed. Missing required fields: From/To/Subject.\r\n");
+                }
+                //将结构体传入save_mail保存
+                save_mail(&mail);
+                if (strncmp(buffer, ".", 1) == 0 && in_data) { // 接收到单独一个 . 的消息表示结束邮件数据的输入
+                    send_message(newsockfd, "250 OK\r\n");
+                    in_data = 0; // 退出接收邮件数据状态
                 }
             } else {
                 send_message(newsockfd, "503 Bad sequence of commands\r\n");

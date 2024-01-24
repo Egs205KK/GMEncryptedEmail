@@ -1,0 +1,1 @@
+{ "from": "sender@example.com", "to": "recipient@example.com", "subject": "Test email", "content": "This is a test email.\r\n" }

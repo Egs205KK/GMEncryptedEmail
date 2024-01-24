@@ -1,4 +1,5 @@
 import socket
+import time
 
 # 定义服务器地址和端口
 SERVER_ADDRESS = 'localhost'
@@ -35,11 +36,19 @@ response = sock.recv(1024)
 print(response.decode())
 
 # 发送邮件内容
-# sock.sendall(b'Subject: Test\r\n')
-# sock.sendall(b'From: sender@example.com\r\n')
-# sock.sendall(b'To: recipient@example.com\r\n')
-# sock.sendall(b'\r\n')
-# sock.sendall(b'This is a test email.\r\n')
+current_time = time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime())
+subject = 'Subject: Test email\r\n'
+from_addr = 'From: sender@example.com\r\n'
+to_addr = 'To: recipient@example.com\r\n'
+date = f'Date: {current_time}\r\n'
+message_body = 'This is a test email.\r\n'
+
+
+message = subject + from_addr + to_addr + date + '\r\n' + message_body
+
+sock.sendall(message.encode())
+
+# 发送结束符号
 sock.sendall(b'.\r\n')
 response = sock.recv(1024)
 print(response.decode())
