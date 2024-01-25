@@ -1,1 +1,1 @@
-{ "from": "sender@example.com", "to": "recipient@example.com", "subject": "Test email", "content": "This is a test email.\r\n" }
+{ "Subject": "Test email", "From": "sender@example.com", "To": "recipient@example.com", "Date": "Thu, 25 Jan 2024 15:30:52 +0000", "Body": "This is a test email.\r" }
