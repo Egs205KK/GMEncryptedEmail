@@ -42,7 +42,10 @@ from_addr = 'From: sender@example.com\r\n'
 to_addr = 'To: recipient@example.com\r\n'
 date = f'Date: {current_time}\r\n'
 message_body = 'This is a test email.\r\n'
+
+
 message = subject + from_addr + to_addr + date + '\r\n' + message_body
+
 sock.sendall(message.encode())
 
 # 发送结束符号
