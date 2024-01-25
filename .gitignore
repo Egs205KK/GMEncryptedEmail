@@ -71,3 +71,5 @@ env
 #c编译出来的文件
 server/server
 server_test
+
+config
