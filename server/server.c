@@ -1,7 +1,4 @@
-// server.c
-// Linux系统的SMTP服务器例子，给网络组的同志参考
-// 用 gcc server.c -o server 编译
-// 用 ./server 运行
+// 学习阶段的试验
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -143,7 +140,7 @@ void save_mail(struct mail_content *m)
     struct mail_header *header = m->headers;
     while (header != NULL) {
         json_object_object_add(jobj, header->key,
-                               json_object_new_string(header->value));
+        json_object_new_string(header->value));
         header = header->next;
     }
     json_object_object_add(jobj, "Body", jbody);
@@ -220,7 +217,9 @@ int main()
         read_message(newsockfd, buffer);
 
         // print消息
-        printf("Client: %s", buffer);
+        // if(buffer != "\n"){
+        //     printf("Client: %s", buffer);
+        // }
 
         // 检查消息合法性并相应地回复
         if (strncmp(buffer, "HELO", 4) == 0) { // HELO指令
@@ -261,7 +260,7 @@ int main()
             quit = 1; // 设置标志
             send_message(newsockfd, "221 Bye\r\n");
         } else { // 其他指令都无效
-            send_message(newsockfd, "500 Command unrecognized\r\n");
+            send_message(newsockfd, "200 Command unrecognized\r\n");
         }
 
         // 清空缓存区

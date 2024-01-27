@@ -3,7 +3,7 @@ import time
 
 # 定义服务器地址和端口
 SERVER_ADDRESS = 'localhost'
-SERVER_PORT = 25
+SERVER_PORT = 587
 
 # 创建socket对象
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

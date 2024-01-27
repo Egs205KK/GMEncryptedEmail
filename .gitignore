@@ -73,3 +73,9 @@ server/server
 server_test
 
 config
+
+server.crt
+server.key
+server.csr
+
+temp
